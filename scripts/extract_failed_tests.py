@@ -22,6 +22,7 @@ from collections import defaultdict
 from pathlib import Path
 
 from dotenv import load_dotenv
+from src.utils import get_model_name
 
 load_dotenv()
 
@@ -181,8 +182,7 @@ def main() -> None:
             cfg = yaml.safe_load(f) or {}
     except Exception:
         cfg = {}
-    raw = os.environ.get("ANTHROPIC_DEFAULT_SONNET_MODEL", "unknown-model")
-    model_name = re.sub(r"[^A-Za-z0-9._-]+", "-", raw) or "unknown-model"
+    model_name = get_model_name(cfg)
     g = cfg.get("global", {})
     batch = g.get("active_batch")
     if not batch:

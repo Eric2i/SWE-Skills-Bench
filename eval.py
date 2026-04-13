@@ -82,7 +82,7 @@ def evaluate(
     # Determine output directory (model- and batch-aware)
     batch = get_active_batch(config_data)
     if output is None:
-        output = os.path.join("reports", get_model_name(), batch, "eval")
+        output = os.path.join("reports", get_model_name(config_data), batch, "eval")
 
     # Generate timestamp and filename identifier
     timestamp = get_timestamp()
@@ -122,7 +122,11 @@ def evaluate(
 
     # Build container name
     container_name = generate_container_name(
-        skill, use_skill, use_agent, model_name=get_model_name(), batch=batch
+        skill,
+        use_skill,
+        use_agent,
+        model_name=get_model_name(config_data),
+        batch=batch,
     )
     logger.info(f"Looking for container: {container_name}")
 

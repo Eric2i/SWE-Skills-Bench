@@ -27,14 +27,9 @@ from datetime import datetime
 from typing import List, Set, Optional
 
 from dotenv import load_dotenv
+from src.utils import get_agent_backend, get_model_name
 
 load_dotenv()
-
-
-def _get_model_name() -> str:
-    """Get sanitized model name from ANTHROPIC_DEFAULT_SONNET_MODEL env var."""
-    raw = os.environ.get("ANTHROPIC_DEFAULT_SONNET_MODEL", "unknown-model")
-    return re.sub(r"[^A-Za-z0-9._-]+", "-", raw) or "unknown-model"
 
 
 class SkillRunner:
@@ -42,7 +37,7 @@ class SkillRunner:
 
     def __init__(self, config_path: str = "config/benchmark_config.yaml"):
         self.config_path = Path(config_path)
-        self.model_name = _get_model_name()
+        self.model_name = "unknown-model"
         # Per-batch state — initialized by _setup_batch_dirs inside run_all_for_batch
         self.log_file: Optional[Path] = None
         self.completed_file: Optional[Path] = None
@@ -53,7 +48,41 @@ class SkillRunner:
             print(f"Error: config file not found: {self.config_path}")
             sys.exit(1)
         with open(self.config_path, "r", encoding="utf-8") as f:
-            return yaml.safe_load(f)
+            config = yaml.safe_load(f)
+        self.model_name = get_model_name(config)
+        return config
+
+    def _validate_backend_auth(self, config: dict):
+        """
+        Perform lightweight host-side auth checks before batch execution.
+
+        For Codex runs, the benchmark lifecycle copies ~/.codex/auth.json into the
+        container automatically when present, so checking here gives earlier and
+        clearer feedback than failing mid-run.
+        """
+        backend = get_agent_backend(config)
+        if backend != "codex":
+            return
+
+        auth_path = Path.home() / ".codex" / "auth.json"
+        has_auth_file = auth_path.exists()
+        has_api_key = bool(os.environ.get("CODEX_API_KEY") or os.environ.get("OPENAI_API_KEY"))
+
+        if has_auth_file:
+            print(f"[preflight] Codex auth file found: {auth_path}")
+            return
+
+        if has_api_key:
+            print("[preflight] Codex API key found in environment")
+            return
+
+        print("Error: Codex backend selected but no host authentication source was found.")
+        print(f"Expected auth file: {auth_path}")
+        print("Provide one of the following before running:")
+        print("  1. ~/.codex/auth.json")
+        print("  2. CODEX_API_KEY")
+        print("  3. OPENAI_API_KEY")
+        sys.exit(1)
 
     def _get_batches(self, config: dict) -> List[str]:
         """Return the list of batch names from config global.batches."""
@@ -247,6 +276,7 @@ class SkillRunner:
     ):
         """Run all skills across all configured batches."""
         config = self._load_config()
+        self._validate_backend_auth(config)
         batches = self._get_batches(config)
         if not batches:
             print("Error: no batches defined in config global.batches")

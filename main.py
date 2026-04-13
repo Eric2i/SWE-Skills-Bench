@@ -88,7 +88,7 @@ def run(
     # Determine output directory (model- and batch-aware)
     batch = get_active_batch(config_data)
     if output is None:
-        output = os.path.join("reports", get_model_name(), batch, "interactive")
+        output = os.path.join("reports", get_model_name(config_data), batch, "interactive")
 
     # Generate safe skill filename and timestamp for log file naming
     timestamp = get_timestamp()

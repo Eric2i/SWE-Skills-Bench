@@ -2,7 +2,7 @@
 compare_pass_rate.py
 Compare L2/unit_test pass rates between use-skill and no-use-skill, output delta.
 
-Report directory is derived automatically from ANTHROPIC_DEFAULT_SONNET_MODEL (env)
+Report directory is derived automatically from the configured backend/model
 and the active batch in config global.active_batch:
     reports/{model}/{batch}/eval/
 
@@ -33,6 +33,7 @@ from datetime import datetime
 
 import click
 from dotenv import load_dotenv
+from src.utils import get_model_name
 
 load_dotenv()
 
@@ -50,8 +51,7 @@ def _get_run_config(config_path: str) -> tuple:
             cfg = yaml.safe_load(f) or {}
     except Exception:
         cfg = {}
-    raw = os.environ.get("ANTHROPIC_DEFAULT_SONNET_MODEL", "unknown-model")
-    model = re.sub(r"[^A-Za-z0-9._-]+", "-", raw) or "unknown-model"
+    model = get_model_name(cfg)
     g = cfg.get("global", {})
     batch = g.get("active_batch")
     if not batch:

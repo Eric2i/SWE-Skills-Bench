@@ -17,6 +17,8 @@ from .logger import get_logger, log_section
 from ..utils import (
     generate_container_name,
     generate_report_filename,
+    get_agent_backend,
+    get_configured_model,
     get_model_name,
     get_active_batch,
     get_resolved_tasks_dir,
@@ -112,6 +114,10 @@ class BenchmarkLifecycle:
         self.clean_container = bool(clean_container)
         # Active batch derived from config (global.active_batch or first in global.batches)
         self.batch = get_active_batch(config)
+        # Active agent backend derived from config/env
+        self.agent_backend = get_agent_backend(config)
+        if self.agent_backend not in {"claude", "codex"}:
+            raise ValueError(f"Unsupported agent backend: {self.agent_backend}")
         # Actual repository path inside the container (e.g. /workspace/upgradle)
         self.repo_dir: Optional[str] = None
 
@@ -260,7 +266,7 @@ To fix this issue:
         # Prepare container configuration
         limits = env_config.get("limits", {})
 
-        # Claude Code config file paths (on host) - will be copied into the container later
+        # Claude Code config file paths (on host) - copied only for the Claude backend
         self._claude_config_files = {
             "settings": os.path.join(os.getcwd(), ".claude", "settings.json"),
             "settings_user": os.path.join(os.getcwd(), ".claude", "settings.user.json"),
@@ -269,6 +275,8 @@ To fix this issue:
         }
 
         volumes = {}
+        env_vars = dict(env_config.get("env_vars", {}))
+        env_vars.update(self._build_agent_env_vars())
 
         container_config = ContainerConfig(
             image=env_config.get("base_image", "python:3.10"),
@@ -276,14 +284,14 @@ To fix this issue:
                 self.skill_id,
                 self.use_skill,
                 self.use_agent,
-                model_name=get_model_name(),
+                model_name=get_model_name(self.config),
                 batch=self.batch,
             ),
             working_dir=global_config.get("workspace_dir", "/workspace"),
             network_mode=global_config.get("network_mode", "none"),
             cpus=float(limits.get("cpus", 4)),
             memory=limits.get("memory", "16g"),
-            env_vars=env_config.get("env_vars", {}),
+            env_vars=env_vars,
             volumes=volumes,
             timeout_per_command=limits.get("timeout_per_command", 300),
         )
@@ -298,8 +306,11 @@ To fix this issue:
 
         self._log("Container started successfully")
 
-        # Copy Claude config files to the container (not mounted, to avoid modifying the host)
-        await self._copy_claude_config_to_container()
+        # Prepare backend-specific agent config inside the container.
+        if self.agent_backend == "codex":
+            await self._copy_codex_config_to_container()
+        else:
+            await self._copy_claude_config_to_container()
 
         # Clone repository
         repo_config = self.skill_config.get("repo", {})
@@ -390,70 +401,153 @@ To fix this issue:
         except Exception as e:
             self._log(f"Failed to chown claude files: {e}")
 
-        # Copy local skills directory to ~/.claude/skills in the container (controlled by self.use_skill)
+        await self._copy_local_skills_to_container(
+            dest_root="/home/dev/.claude/skills",
+            chown_target="/home/dev/.claude/skills",
+        )
+
+    def _build_agent_env_vars(self) -> Dict[str, str]:
+        """Build backend-specific runtime environment variables for the container."""
+        if self.agent_backend != "codex":
+            return {}
+
+        env_vars: Dict[str, str] = {}
+        host_auth_path = os.path.expanduser("~/.codex/auth.json")
+        has_host_auth_file = os.path.exists(host_auth_path)
+        auth_source = (os.environ.get("CODEX_AUTH_SOURCE") or "").strip().lower()
+        prefer_env_auth = auth_source in {"env", "api", "api_key"}
+        api_key = os.environ.get("CODEX_API_KEY") or os.environ.get("OPENAI_API_KEY")
+        if api_key and (prefer_env_auth or not has_host_auth_file):
+            env_vars["CODEX_API_KEY"] = api_key
+            env_vars.setdefault("OPENAI_API_KEY", api_key)
+
+        base_url = os.environ.get("OPENAI_BASE_URL")
+        if base_url:
+            env_vars["OPENAI_BASE_URL"] = base_url
+
+        model = get_configured_model(self.config)
+        if model and model != "unknown-model":
+            env_vars["OPENAI_DEFAULT_CODEX_MODEL"] = model
+
+        return env_vars
+
+    async def _copy_codex_config_to_container(self):
+        """
+        Prepare Codex CLI config inside the container.
+
+        Authentication prefers the host's ~/.codex/auth.json when present. This
+        avoids ambient host API keys silently overriding a working local Codex login
+        inside the benchmark container. To force env-based auth instead, set
+        CODEX_AUTH_SOURCE=env before running the benchmark.
+        """
+        self._log("Preparing Codex CLI files inside the container...")
+
+        self.docker_manager.execute_command(
+            "mkdir -p /home/dev/.codex /home/dev/.agents/skills",
+            timeout=30,
+            user="root",
+        )
+
+        host_auth_path = os.path.expanduser("~/.codex/auth.json")
+        if os.path.exists(host_auth_path):
+            try:
+                with open(host_auth_path, "rb") as f:
+                    content = f.read()
+                success, msg = self.docker_manager.write_file_direct(
+                    "/home/dev/.codex/auth.json", content
+                )
+                if success:
+                    self._log(
+                        f"Copied Codex auth.json to container ({len(content)} bytes)"
+                    )
+                else:
+                    self._log(f"Failed to copy Codex auth.json: {msg}")
+            except Exception as e:
+                self._log(f"Error copying Codex auth.json: {e}")
+        else:
+            self._log("No host ~/.codex/auth.json found; relying on env-based Codex auth")
+
+        if os.environ.get("CODEX_API_KEY") or os.environ.get("OPENAI_API_KEY"):
+            auth_source = (os.environ.get("CODEX_AUTH_SOURCE") or "").strip().lower()
+            if os.path.exists(host_auth_path) and auth_source not in {"env", "api", "api_key"}:
+                self._log(
+                    "Host Codex auth.json detected; skipping container API key injection. "
+                    "Set CODEX_AUTH_SOURCE=env to force env-based auth."
+                )
+            elif auth_source in {"env", "api", "api_key"}:
+                self._log("CODEX_AUTH_SOURCE=env set; using container API key auth")
+
+        try:
+            chown_cmds = [
+                "chown -R dev:dev /home/dev/.codex || true",
+                "chown -R dev:dev /home/dev/.agents || true",
+            ]
+            for cmd in chown_cmds:
+                res = self.docker_manager.execute_command(cmd, timeout=30, user="root")
+                self._log(f"Chown '{cmd}' exit_code={res.exit_code}")
+        except Exception as e:
+            self._log(f"Failed to chown Codex files: {e}")
+
+        await self._copy_local_skills_to_container(
+            dest_root="/home/dev/.agents/skills",
+            chown_target="/home/dev/.agents",
+        )
+
+    async def _copy_local_skills_to_container(
+        self, dest_root: str, chown_target: Optional[str] = None
+    ):
+        """Copy the local benchmark skills directory into a container skill location."""
         try:
             if not getattr(self, "use_skill", False):
                 self._log(
                     "Skipping copying local skills to container (use_skill flag is False)"
                 )
-            else:
-                local_skills_dir = os.path.join(os.getcwd(), "skills")
-                if os.path.exists(local_skills_dir) and os.path.isdir(local_skills_dir):
-                    self._log(
-                        f"Copying local skills from {local_skills_dir} to /home/dev/.claude/skills"
-                    )
+                return
 
-                    # assume /home/dev/.claude already exists in the container
+            local_skills_dir = os.path.join(os.getcwd(), "skills")
+            if not os.path.isdir(local_skills_dir):
+                self._log(
+                    f"No local skills directory at {local_skills_dir}; skipping skills copy"
+                )
+                return
 
-                    # Count copied files
-                    copied_count = 0
-                    failed_count = 0
+            self._log(f"Copying local skills from {local_skills_dir} to {dest_root}")
+            copied_count = 0
+            failed_count = 0
 
-                    # Recursively copy each file (preserving directory structure)
-                    for root, dirs, files in os.walk(local_skills_dir):
-                        rel = os.path.relpath(root, local_skills_dir)
-                        if rel == ".":
-                            dest_dir = "/home/dev/.claude/skills"
-                        else:
-                            # Convert path separator to POSIX style (cross-platform)
-                            rel_posix = rel.replace(os.sep, "/")
-                            dest_dir = f"/home/dev/.claude/skills/{rel_posix}"
-
-                        # Create directory (silent)
-                        self.docker_manager.execute_command(
-                            f"mkdir -p {dest_dir}", user="root"
-                        )
-
-                        for fname in files:
-                            local_file = os.path.join(root, fname)
-                            container_path = f"{dest_dir}/{fname}"
-                            try:
-                                self.docker_manager.copy_to_container(
-                                    local_file, container_path
-                                )
-                                copied_count += 1
-                            except Exception as e:
-                                failed_count += 1
-                                self._log(
-                                    f"Failed to copy skill file {local_file}: {e}"
-                                )
-
-                    # Print copy summary
-                    self._log(
-                        f"Skills copy completed: {copied_count} files copied, {failed_count} failed"
-                    )
-
-                    # Set ownership to dev:dev
-                    chown_skills = self.docker_manager.execute_command(
-                        "chown -R dev:dev /home/dev/.claude/skills || true",
-                        timeout=30,
-                        user="root",
-                    )
-                    self._log(f"Chown skills exit_code={chown_skills.exit_code}")
+            for root, dirs, files in os.walk(local_skills_dir):
+                rel = os.path.relpath(root, local_skills_dir)
+                if rel == ".":
+                    dest_dir = dest_root
                 else:
-                    self._log(
-                        f"No local skills directory at {local_skills_dir}; skipping skills copy"
-                    )
+                    rel_posix = rel.replace(os.sep, "/")
+                    dest_dir = f"{dest_root}/{rel_posix}"
+
+                self.docker_manager.execute_command(
+                    f"mkdir -p {dest_dir}", user="root"
+                )
+
+                for fname in files:
+                    local_file = os.path.join(root, fname)
+                    container_path = f"{dest_dir}/{fname}"
+                    try:
+                        self.docker_manager.copy_to_container(local_file, container_path)
+                        copied_count += 1
+                    except Exception as e:
+                        failed_count += 1
+                        self._log(f"Failed to copy skill file {local_file}: {e}")
+
+            self._log(
+                f"Skills copy completed: {copied_count} files copied, {failed_count} failed"
+            )
+
+            if chown_target:
+                chown_skills = self.docker_manager.execute_command(
+                    f"chown -R dev:dev {chown_target} || true",
+                    timeout=30,
+                    user="root",
+                )
+                self._log(f"Chown skills exit_code={chown_skills.exit_code}")
         except Exception as e:
             self._log(f"Error while copying skills to container: {e}")
 
@@ -718,14 +812,15 @@ To fix this issue:
 
     async def _stage_interaction_loop(self):
         """
-        Agent interaction loop stage (Claude Code CLI mode).
+        Agent interaction loop stage.
 
         Workflow:
         1. Write task file into the container
-        2. Invoke the claude CLI to operate autonomously inside the container
+        2. Invoke the configured agent CLI to operate autonomously inside the container
         3. Wait for completion
         """
-        log_section("Interaction Loop (Claude Code CLI)")
+        agent_label = "Codex CLI" if self.agent_backend == "codex" else "Claude Code CLI"
+        log_section(f"Interaction Loop ({agent_label})")
         self._transition_to(LifecycleStage.INTERACTION)
 
         # Decide whether to skip the interaction stage based on config
@@ -734,9 +829,9 @@ To fix this issue:
             self.iterations = 0
             return
 
-        from ..proxy import ClaudeCodeProxy
+        from ..proxy import create_agent_proxy
 
-        # Initialize Claude Code proxy with the corrected working directory
+        # Initialize the configured agent proxy with the corrected working directory
         proxy_config = self.config.copy()
         proxy_config["skill_id"] = self.skill_id
         proxy_config["use_skill"] = self.use_skill
@@ -748,36 +843,36 @@ To fix this issue:
             if "global" not in proxy_config:
                 proxy_config["global"] = {}
             proxy_config["global"]["workspace_dir"] = self.repo_dir
-            self._log(f"Using repo directory for Claude Code: {self.repo_dir}")
+            self._log(f"Using repo directory for {agent_label}: {self.repo_dir}")
 
-        claude_proxy = ClaudeCodeProxy(
+        agent_proxy = create_agent_proxy(
             docker_manager=self.docker_manager, config=proxy_config
         )
 
-        self._log("Starting Claude Code interaction...")
+        self._log(f"Starting {agent_label} interaction...")
 
         # Execute task
-        result = await claude_proxy.execute_task(self._task_content)
+        result = await agent_proxy.execute_task(self._task_content)
 
-        self.iterations = 1  # Claude Code CLI executes in a single pass
+        self.iterations = 1  # CLI-based agents execute in a single pass
 
         if result.success:
             self._log(
-                f"Claude Code completed successfully in {result.duration_sec:.2f}s"
+                f"{agent_label} completed successfully in {result.duration_sec:.2f}s"
             )
             self._log(f"Output length: {len(result.output)} chars")
         else:
-            self._log(f"Claude Code failed with exit code: {result.exit_code}")
+            self._log(f"{agent_label} failed with exit code: {result.exit_code}")
             if result.stderr:
                 self._log(f"Stderr: {result.stderr[:500]}")
-            # Raise exception when Claude fails to prevent marking as success
+            # Raise exception when the agent fails to prevent marking the run as success
             raise RuntimeError(
-                f"Claude Code execution failed with exit code {result.exit_code}"
+                f"{agent_label} execution failed with exit code {result.exit_code}"
             )
 
         # Output result summary
         self._log(
-            f"Claude Code result: success={result.success}, duration={result.duration_sec:.2f}s"
+            f"{agent_label} result: success={result.success}, duration={result.duration_sec:.2f}s"
         )
 
     async def _stage_cleanup(self):

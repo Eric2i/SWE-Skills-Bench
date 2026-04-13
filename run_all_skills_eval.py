@@ -32,20 +32,15 @@ except Exception:
     raise
 
 from dotenv import load_dotenv
+from src.utils import get_model_name
 
 load_dotenv()
-
-
-def _get_model_name() -> str:
-    """Get sanitized model name from ANTHROPIC_DEFAULT_SONNET_MODEL env var."""
-    raw = os.environ.get("ANTHROPIC_DEFAULT_SONNET_MODEL", "unknown-model")
-    return re.sub(r"[^A-Za-z0-9._-]+", "-", raw) or "unknown-model"
 
 
 class EvalBatchRunner:
     def __init__(self, config_path: str = "config/benchmark_config.yaml"):
         self.config_path = Path(config_path)
-        self.model_name = _get_model_name()
+        self.model_name = "unknown-model"
         # Per-batch state — initialized by _setup_batch_dirs inside run_all_for_batch
         self.log_file: Optional[Path] = None
 
@@ -55,7 +50,9 @@ class EvalBatchRunner:
             print(f"Config file not found: {self.config_path}")
             sys.exit(1)
         with open(self.config_path, "r", encoding="utf-8") as f:
-            return yaml.safe_load(f)
+            config = yaml.safe_load(f)
+        self.model_name = get_model_name(config)
+        return config
 
     def _get_batches(self, config: dict) -> List[str]:
         """Return the list of batch names from config global.batches."""

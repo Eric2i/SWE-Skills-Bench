@@ -65,7 +65,7 @@ class ClaudeCodeProxy:
         # claude_process/{model_name}/{batch}/
         #   ├── claude_output/     # Redirected CLI output
         #   └── claude_thinking/   # Thinking JSON files from ~/.claude/projects/-workspace
-        _model_name = get_model_name()
+        _model_name = get_model_name(config)
         _batch = config.get("batch", "")
         if _batch:
             self.process_base_dir = os.path.join(
