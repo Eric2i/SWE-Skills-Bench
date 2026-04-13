@@ -117,8 +117,12 @@ The built-in evaluation framework automates the full pipeline: Docker container 
 
 - Python 3.8+
 - Docker (running locally)
-- Claude Code CLI (`claude` command available inside the container image — no local install required)
-- An Anthropic API key
+- A supported agent CLI available inside the container image:
+  - Claude Code (`claude`) for `agent_backend: claude`
+  - Codex CLI (`codex`) for `agent_backend: codex`
+- Credentials for the selected backend:
+  - Anthropic API key for Claude
+  - `CODEX_API_KEY` or `OPENAI_API_KEY` for Codex
 
 #### Step 1: Install and configure
 
@@ -132,24 +136,37 @@ pip install -r requirements.txt
 cp .env.example .env
 ```
 
-Edit `.env` with your API credentials:
+Edit `.env` with the backend and credentials you want to use:
 
 ```text
+AGENT_BACKEND=claude
+
 # Official Anthropic API key — get one at https://console.anthropic.com/
 ANTHROPIC_AUTH_TOKEN=your-anthropic-api-key
 
 # If using a third-party proxy, set the proxy URL here; leave empty for direct API access
 ANTHROPIC_BASE_URL=
+
+# Codex / OpenAI auth (used when AGENT_BACKEND=codex)
+CODEX_API_KEY=
+OPENAI_API_KEY=
+OPENAI_BASE_URL=
 ```
 
 #### Step 2: Configure the model
 
-The framework runs the `claude` CLI inside each Docker container.
+The framework runs the configured agent CLI inside each Docker container. You can
+choose the backend in either `.env` (`AGENT_BACKEND=claude|codex`) or
+`config/benchmark_config.yaml` (`global.agent_backend`).
 
-To change the model, edit `.env` before running — the framework copies it into the container automatically:
+To change the model, edit `.env` before running:
 
 ```bash
+# Claude backend
 ANTHROPIC_DEFAULT_SONNET_MODEL=claude-sonnet-4-6
+
+# Codex backend
+OPENAI_DEFAULT_CODEX_MODEL=gpt-5-codex
 ```
 
 #### Step 3: Validate the setup

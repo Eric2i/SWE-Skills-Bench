@@ -1,8 +1,8 @@
 """
 Remove Docker containers for the specified skill.
 
-Container names are derived from ANTHROPIC_DEFAULT_SONNET_MODEL (env) and
-the active batch set in config global.active_batch.
+Container names are derived from the configured backend/model and the active
+batch set in config global.active_batch.
 
 Usage:
     python scripts/clean_container.py -s <skill-id>
@@ -88,7 +88,7 @@ def clean(
         log(f"Failed to load config file: {e}", level="ERROR")
         sys.exit(1)
 
-    _model_name = get_model_name()
+    _model_name = get_model_name(config_data)
     all_batches = [str(b) for b in config_data.get("global", {}).get("batches", [])]
     active_batch = get_active_batch(config_data)
 

@@ -61,17 +61,75 @@ def get_timestamp(format: str = "%Y%m%d_%H%M%S") -> str:
     return datetime.now().strftime(format)
 
 
-def get_model_name() -> str:
+def get_agent_backend(config: Optional[Dict[str, Any]] = None) -> str:
     """
-    Get the sanitized model name from the ANTHROPIC_DEFAULT_SONNET_MODEL environment variable.
-    Safe for use in file paths and Docker container names.
+    Resolve the active agent backend.
+
+    Resolution order:
+    1. AGENT_BACKEND environment variable
+    2. config.global.agent_backend
+    3. "claude"
+
+    Returns:
+        str: Normalized backend name
+    """
+    backend = os.environ.get("AGENT_BACKEND")
+    if not backend and config:
+        backend = config.get("global", {}).get("agent_backend")
+    backend = backend or "claude"
+    return str(backend).strip().lower() or "claude"
+
+
+def get_configured_model(config: Optional[Dict[str, Any]] = None) -> str:
+    """
+    Get the configured model name for the active backend.
+
+    Resolution order:
+    1. backend-specific environment variables
+    2. config.global.agent_model
+
+    Returns:
+        str: Raw model name; falls back to "unknown-model" when not set
+    """
+    backend = get_agent_backend(config)
+    if backend == "codex":
+        model = (
+            os.environ.get("OPENAI_DEFAULT_CODEX_MODEL")
+            or os.environ.get("CODEX_MODEL")
+            or os.environ.get("OPENAI_MODEL")
+        )
+        if model:
+            return model
+    else:
+        model = os.environ.get("ANTHROPIC_DEFAULT_SONNET_MODEL")
+        if model:
+            return model
+
+    if config:
+        model = config.get("global", {}).get("agent_model")
+        if model:
+            return str(model)
+
+    return "unknown-model"
+
+
+def get_model_name(config: Optional[Dict[str, Any]] = None) -> str:
+    """
+    Get a sanitized model identifier safe for file paths and container names.
+
+    For Codex runs, prefix the backend to keep artifact directories distinct
+    from Claude runs even when a model name is absent or overlaps.
 
     Returns:
         str: Sanitized model name; falls back to "unknown-model" when not set
     """
-    raw_name = os.environ.get("ANTHROPIC_DEFAULT_SONNET_MODEL", "unknown-model")
+    raw_name = get_configured_model(config)
     sanitized = re.sub(r"[^A-Za-z0-9._-]+", "-", raw_name)
-    return sanitized or "unknown-model"
+    sanitized = sanitized or "unknown-model"
+
+    if get_agent_backend(config) == "codex":
+        return f"codex-{sanitized}"
+    return sanitized
 
 
 def get_active_batch(config: Dict[str, Any]) -> str:

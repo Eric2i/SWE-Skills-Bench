@@ -1,11 +1,16 @@
 ﻿# =============================================================================
-# Agent Skills Benchmark Configuration (Claude Code CLI Mode)
+# Agent Skills Benchmark Configuration
 # =============================================================================
 
 # -----------------------------------------------------------------------------
 # Global settings
 # -----------------------------------------------------------------------------
 global:
+  # Supported values: "claude" | "codex"
+  agent_backend: "codex"
+  # Optional explicit model override for the selected backend.
+  # When empty, backend-specific environment variables are used.
+  agent_model: ""
   workspace_dir: "/workspace"
   golden_reference_dir: "/tmp/golden_reference"
   reports_dir: "./reports"
@@ -45,10 +50,10 @@ skills:
     # Docker environment settings - user-provided image
     environment:
       # Base image
-      base_image: "zhangyiiiiii/swe-skills-bench-pytorch:latest"
+      # base_image:"zhangyiiiiii/swe-skills-bench-pytorch:latest"
 
       # Or build via Dockerfile (choose one: this or base_image)
-      dockerfile: ""
+      dockerfile: "./Dockerfile"
       build_context: ""
       build_args: {}
 
@@ -72,7 +77,7 @@ skills:
         max_iterations: 1
         total_timeout_sec: 1800
 
-      # Task instruction (Claude Code CLI mode)
+      # Task instruction consumed by the configured agent backend
       # tasks/add-uint-support.md stores the task description (required)
 
       evaluation:
@@ -108,8 +113,8 @@ skills:
       sparse_checkout: []
 
     environment:
-      base_image: "zhangyiiiiii/swe-skills-bench-python"
-      dockerfile: ""
+      base_image: "swe-skills-bench-python-codex:latest"
+      dockerfile: "./Dockerfile"
       build_context: ""
       build_args: {}
 
@@ -150,8 +155,8 @@ skills:
       sparse_checkout: []
 
     environment:
-      base_image: "zhangyiiiiii/swe-skills-bench-python"
-      dockerfile: ""
+      base_image: "swe-skills-bench-python-codex:latest"
+      dockerfile: "./Dockerfile"
       build_context: ""
       build_args: {}
 
@@ -191,8 +196,8 @@ skills:
       sparse_checkout: []
 
     environment:
-      base_image: "zhangyiiiiii/swe-skills-bench-python"
-      dockerfile: ""
+      base_image: "swe-skills-bench-python-codex:latest"
+      dockerfile: "./Dockerfile"
       build_context: ""
       build_args: {}
 
@@ -232,8 +237,8 @@ skills:
       sparse_checkout: []
 
     environment:
-      base_image: "zhangyiiiiii/swe-skills-bench-jvm"
-      dockerfile: ""
+      # base_image:"zhangyiiiiii/swe-skills-bench-jvm"
+      dockerfile: "./Dockerfile"
       build_context: ""
       build_args: {}
 
@@ -281,8 +286,8 @@ skills:
       sparse_checkout: []
 
     environment:
-      base_image: "zhangyiiiiii/swe-skills-bench-python"
-      dockerfile: ""
+      base_image: "swe-skills-bench-python-codex:latest"
+      dockerfile: "./Dockerfile"
       build_context: ""
       build_args: {}
 
@@ -322,8 +327,8 @@ skills:
       sparse_checkout: []
 
     environment:
-      base_image: "zhangyiiiiii/swe-skills-bench-python"
-      dockerfile: ""
+      base_image: "swe-skills-bench-python-codex:latest"
+      dockerfile: "./Dockerfile"
       build_context: ""
       build_args: {}
 
@@ -371,8 +376,8 @@ skills:
       sparse_checkout: []
 
     environment:
-      base_image: "zhangyiiiiii/swe-skills-bench-python"
-      dockerfile: ""
+      base_image: "swe-skills-bench-python-codex:latest"
+      dockerfile: "./Dockerfile"
       build_context: ""
       build_args: {}
 
@@ -412,8 +417,8 @@ skills:
       sparse_checkout: []
 
     environment:
-      base_image: "zhangyiiiiii/swe-skills-bench-python"
-      dockerfile: ""
+      base_image: "swe-skills-bench-python-codex:latest"
+      dockerfile: "./Dockerfile"
       build_context: ""
       build_args: {}
 
@@ -453,8 +458,8 @@ skills:
       sparse_checkout: []
 
     environment:
-      base_image: "zhangyiiiiii/swe-skills-bench-python"
-      dockerfile: ""
+      base_image: "swe-skills-bench-python-codex:latest"
+      dockerfile: "./Dockerfile"
       build_context: ""
       build_args: {}
 
@@ -502,8 +507,8 @@ skills:
       sparse_checkout: []
 
     environment:
-      base_image: "zhangyiiiiii/swe-skills-bench-python"
-      dockerfile: ""
+      base_image: "swe-skills-bench-python-codex:latest"
+      dockerfile: "./Dockerfile"
       build_context: ""
       build_args: {}
 
@@ -543,8 +548,8 @@ skills:
       sparse_checkout: []
 
     environment:
-      base_image: "zhangyiiiiii/swe-skills-bench-python"
-      dockerfile: ""
+      base_image: "swe-skills-bench-python-codex:latest"
+      dockerfile: "./Dockerfile"
       build_context: ""
       build_args: {}
 
@@ -584,8 +589,8 @@ skills:
       sparse_checkout: []
 
     environment:
-      base_image: "zhangyiiiiii/swe-skills-bench-golang"
-      dockerfile: ""
+      # base_image:"zhangyiiiiii/swe-skills-bench-golang"
+      dockerfile: "./Dockerfile"
       build_context: ""
       build_args: {}
 
@@ -633,8 +638,8 @@ skills:
       sparse_checkout: []
 
     environment:
-      base_image: "zhangyiiiiii/swe-skills-bench-python"
-      dockerfile: ""
+      base_image: "swe-skills-bench-python-codex:latest"
+      dockerfile: "./Dockerfile"
       build_context: ""
       build_args: {}
 
@@ -674,8 +679,8 @@ skills:
       sparse_checkout: []
 
     environment:
-      base_image: "zhangyiiiiii/swe-skills-bench-python"
-      dockerfile: ""
+      base_image: "swe-skills-bench-python-codex:latest"
+      dockerfile: "./Dockerfile"
       build_context: ""
       build_args: {}
 
@@ -728,8 +733,8 @@ skills:
       sparse_checkout: []
 
     environment:
-      base_image: "zhangyiiiiii/swe-skills-bench-clojure"
-      dockerfile: ""
+      # base_image:"zhangyiiiiii/swe-skills-bench-clojure"
+      dockerfile: "./Dockerfile"
       build_context: ""
       build_args: {}
 
@@ -769,8 +774,8 @@ skills:
       sparse_checkout: []
 
     environment:
-      base_image: "zhangyiiiiii/swe-skills-bench-clojure"
-      dockerfile: ""
+      # base_image:"zhangyiiiiii/swe-skills-bench-clojure"
+      dockerfile: "./Dockerfile"
       build_context: ""
       build_args: {}
 
@@ -810,8 +815,8 @@ skills:
       sparse_checkout: []
 
     environment:
-      base_image: "zhangyiiiiii/swe-skills-bench-python"
-      dockerfile: ""
+      base_image: "swe-skills-bench-python-codex:latest"
+      dockerfile: "./Dockerfile"
       build_context: ""
       build_args: {}
 
@@ -851,8 +856,8 @@ skills:
       sparse_checkout: []
 
     environment:
-      base_image: "zhangyiiiiii/swe-skills-bench-python"
-      dockerfile: ""
+      base_image: "swe-skills-bench-python-codex:latest"
+      dockerfile: "./Dockerfile"
       build_context: ""
       build_args: {}
 
@@ -892,8 +897,8 @@ skills:
       sparse_checkout: []
 
     environment:
-      base_image: "zhangyiiiiii/swe-skills-bench-python"
-      dockerfile: ""
+      base_image: "swe-skills-bench-python-codex:latest"
+      dockerfile: "./Dockerfile"
       build_context: ""
       build_args: {}
 
@@ -934,8 +939,8 @@ skills:
       sparse_checkout: []
 
     environment:
-      base_image: "zhangyiiiiii/swe-skills-bench-python"
-      dockerfile: ""
+      base_image: "swe-skills-bench-python-codex:latest"
+      dockerfile: "./Dockerfile"
       build_context: ""
       build_args: {}
 
@@ -983,8 +988,8 @@ skills:
       sparse_checkout: []
 
     environment:
-      base_image: "zhangyiiiiii/swe-skills-bench-python"
-      dockerfile: ""
+      base_image: "swe-skills-bench-python-codex:latest"
+      dockerfile: "./Dockerfile"
       build_context: ""
       build_args: {}
 
@@ -1024,8 +1029,8 @@ skills:
       sparse_checkout: []
 
     environment:
-      base_image: "zhangyiiiiii/swe-skills-bench-python"
-      dockerfile: ""
+      base_image: "swe-skills-bench-python-codex:latest"
+      dockerfile: "./Dockerfile"
       build_context: ""
       build_args: {}
 
@@ -1065,8 +1070,8 @@ skills:
       sparse_checkout: []
 
     environment:
-      base_image: "zhangyiiiiii/swe-skills-bench-python"
-      dockerfile: ""
+      base_image: "swe-skills-bench-python-codex:latest"
+      dockerfile: "./Dockerfile"
       build_context: ""
       build_args: {}
 
@@ -1114,8 +1119,8 @@ skills:
       sparse_checkout: []
 
     environment:
-      base_image: "zhangyiiiiii/swe-skills-bench-python"
-      dockerfile: ""
+      base_image: "swe-skills-bench-python-codex:latest"
+      dockerfile: "./Dockerfile"
       build_context: ""
       build_args: {}
 
@@ -1155,8 +1160,8 @@ skills:
       sparse_checkout: []
 
     environment:
-      base_image: "zhangyiiiiii/swe-skills-bench-jvm"
-      dockerfile: ""
+      # base_image:"zhangyiiiiii/swe-skills-bench-jvm"
+      dockerfile: "./Dockerfile"
       build_context: ""
       build_args: {}
 
@@ -1204,8 +1209,8 @@ skills:
       sparse_checkout: []
 
     environment:
-      base_image: "zhangyiiiiii/swe-skills-bench-golang"
-      dockerfile: ""
+      # base_image:"zhangyiiiiii/swe-skills-bench-golang"
+      dockerfile: "./Dockerfile"
       build_context: ""
       build_args: {}
 
@@ -1253,8 +1258,8 @@ skills:
       sparse_checkout: []
 
     environment:
-      base_image: "zhangyiiiiii/swe-skills-bench-python"
-      dockerfile: ""
+      base_image: "swe-skills-bench-python-codex:latest"
+      dockerfile: "./Dockerfile"
       build_context: ""
       build_args: {}
 
@@ -1294,8 +1299,8 @@ skills:
       sparse_checkout: []
 
     environment:
-      base_image: "zhangyiiiiii/swe-skills-bench-python"
-      dockerfile: ""
+      base_image: "swe-skills-bench-python-codex:latest"
+      dockerfile: "./Dockerfile"
       build_context: ""
       build_args: {}
 
@@ -1335,8 +1340,8 @@ skills:
       sparse_checkout: []
 
     environment:
-      base_image: "zhangyiiiiii/swe-skills-bench-python"
-      dockerfile: ""
+      base_image: "swe-skills-bench-python-codex:latest"
+      dockerfile: "./Dockerfile"
       build_context: ""
       build_args: {}
 
@@ -1377,8 +1382,8 @@ skills:
       sparse_checkout: []
 
     environment:
-      base_image: "zhangyiiiiii/swe-skills-bench-golang"
-      dockerfile: ""
+      # base_image:"zhangyiiiiii/swe-skills-bench-golang"
+      dockerfile: "./Dockerfile"
       build_context: ""
       build_args: {}
 
@@ -1426,8 +1431,8 @@ skills:
       sparse_checkout: []
 
     environment:
-      base_image: "zhangyiiiiii/swe-skills-bench-golang"
-      dockerfile: ""
+      # base_image:"zhangyiiiiii/swe-skills-bench-golang"
+      dockerfile: "./Dockerfile"
       build_context: ""
       build_args: {}
 
@@ -1475,8 +1480,8 @@ skills:
       sparse_checkout: []
 
     environment:
-      base_image: "zhangyiiiiii/swe-skills-bench-ruby"
-      dockerfile: ""
+      # base_image:"zhangyiiiiii/swe-skills-bench-ruby"
+      dockerfile: "./Dockerfile"
       build_context: ""
       build_args: {}
 
@@ -1516,8 +1521,8 @@ skills:
       sparse_checkout: []
 
     environment:
-      base_image: "zhangyiiiiii/swe-skills-bench-golang"
-      dockerfile: ""
+      # base_image:"zhangyiiiiii/swe-skills-bench-golang"
+      dockerfile: "./Dockerfile"
       build_context: ""
       build_args: {}
 
@@ -1565,8 +1570,8 @@ skills:
       sparse_checkout: []
 
     environment:
-      base_image: "zhangyiiiiii/swe-skills-bench-python"
-      dockerfile: ""
+      base_image: "swe-skills-bench-python-codex:latest"
+      dockerfile: "./Dockerfile"
       build_context: ""
       build_args: {}
 
@@ -1614,8 +1619,8 @@ skills:
       sparse_checkout: []
 
     environment:
-      base_image: "zhangyiiiiii/swe-skills-bench-bazel"
-      dockerfile: ""
+      # base_image:"zhangyiiiiii/swe-skills-bench-bazel"
+      dockerfile: "./Dockerfile"
       build_context: ""
       build_args: {}
 
@@ -1663,8 +1668,8 @@ skills:
       sparse_checkout: []
 
     environment:
-      base_image: "zhangyiiiiii/swe-skills-bench-python"
-      dockerfile: ""
+      base_image: "swe-skills-bench-python-codex:latest"
+      dockerfile: "./Dockerfile"
       build_context: ""
       build_args: {}
 
@@ -1704,8 +1709,8 @@ skills:
       sparse_checkout: []
 
     environment:
-      base_image: "zhangyiiiiii/swe-skills-bench-python"
-      dockerfile: ""
+      base_image: "swe-skills-bench-python-codex:latest"
+      dockerfile: "./Dockerfile"
       build_context: ""
       build_args: {}
 
@@ -1745,8 +1750,8 @@ skills:
       sparse_checkout: []
 
     environment:
-      base_image: "zhangyiiiiii/swe-skills-bench-ruby"
-      dockerfile: ""
+      # base_image:"zhangyiiiiii/swe-skills-bench-ruby"
+      dockerfile: "./Dockerfile"
       build_context: ""
       build_args: {}
 
@@ -1786,8 +1791,8 @@ skills:
       sparse_checkout: []
 
     environment:
-      base_image: "zhangyiiiiii/swe-skills-bench-python"
-      dockerfile: ""
+      base_image: "swe-skills-bench-python-codex:latest"
+      dockerfile: "./Dockerfile"
       build_context: ""
       build_args: {}
 
@@ -1827,8 +1832,8 @@ skills:
       sparse_checkout: []
 
     environment:
-      base_image: "zhangyiiiiii/swe-skills-bench-python"
-      dockerfile: ""
+      base_image: "swe-skills-bench-python-codex:latest"
+      dockerfile: "./Dockerfile"
       build_context: ""
       build_args: {}
 
@@ -1868,8 +1873,8 @@ skills:
       sparse_checkout: []
 
     environment:
-      base_image: "zhangyiiiiii/swe-skills-bench-golang"
-      dockerfile: ""
+      # base_image:"zhangyiiiiii/swe-skills-bench-golang"
+      dockerfile: "./Dockerfile"
       build_context: ""
       build_args: {}
 
@@ -1917,8 +1922,8 @@ skills:
       sparse_checkout: []
 
     environment:
-      base_image: "zhangyiiiiii/swe-skills-bench-golang"
-      dockerfile: ""
+      # base_image:"zhangyiiiiii/swe-skills-bench-golang"
+      dockerfile: "./Dockerfile"
       build_context: ""
       build_args: {}
 
@@ -1966,8 +1971,8 @@ skills:
       sparse_checkout: []
 
     environment:
-      base_image: "zhangyiiiiii/swe-skills-bench-python"
-      dockerfile: ""
+      base_image: "swe-skills-bench-python-codex:latest"
+      dockerfile: "./Dockerfile"
       build_context: ""
       build_args: {}
 
@@ -2007,8 +2012,8 @@ skills:
       sparse_checkout: []
 
     environment:
-      base_image: "zhangyiiiiii/swe-skills-bench-rust"
-      dockerfile: ""
+      # base_image:"zhangyiiiiii/swe-skills-bench-rust"
+      dockerfile: "./Dockerfile"
       build_context: ""
       build_args: {}
 
@@ -2056,8 +2061,8 @@ skills:
       sparse_checkout: []
 
     environment:
-      base_image: "zhangyiiiiii/swe-skills-bench-golang"
-      dockerfile: ""
+      # base_image:"zhangyiiiiii/swe-skills-bench-golang"
+      dockerfile: "./Dockerfile"
       build_context: ""
       build_args: {}
 
@@ -2105,8 +2110,8 @@ skills:
       sparse_checkout: []
 
     environment:
-      base_image: "zhangyiiiiii/swe-skills-bench-python"
-      dockerfile: ""
+      base_image: "swe-skills-bench-python-codex:latest"
+      dockerfile: "./Dockerfile"
       build_context: ""
       build_args: {}
 
@@ -2146,8 +2151,8 @@ skills:
       sparse_checkout: []
 
     environment:
-      base_image: "zhangyiiiiii/swe-skills-bench-python"
-      dockerfile: ""
+      base_image: "swe-skills-bench-python-codex:latest"
+      dockerfile: "./Dockerfile"
       build_context: ""
       build_args: {}
 
@@ -2187,8 +2192,8 @@ skills:
       sparse_checkout: []
 
     environment:
-      base_image: "zhangyiiiiii/swe-skills-bench-python"
-      dockerfile: ""
+      base_image: "swe-skills-bench-python-codex:latest"
+      dockerfile: "./Dockerfile"
       build_context: ""
       build_args: {}
 

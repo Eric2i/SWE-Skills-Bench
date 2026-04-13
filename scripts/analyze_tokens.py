@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Analyze token consumption from claude_process/{model}/{batch}/claude_thinking/*.jsonl files.
+Analyze token consumption from agent JSONL logs.
 Outputs input token fields, output tokens, total tokens, and total duration
 for each skill (use-skill / no-use-skill).
 
@@ -32,14 +32,9 @@ from datetime import datetime
 from collections import defaultdict
 
 from dotenv import load_dotenv
+from src.utils import get_agent_backend, get_model_name
 
 load_dotenv()
-
-
-def _get_model_name() -> str:
-    """Get sanitized model name from ANTHROPIC_DEFAULT_SONNET_MODEL env var."""
-    raw = os.environ.get("ANTHROPIC_DEFAULT_SONNET_MODEL", "unknown-model")
-    return re.sub(r"[^A-Za-z0-9._-]+", "-", raw) or "unknown-model"
 
 
 # ─── File parsing ────────────────────────────────────────────────────────────────
@@ -48,15 +43,15 @@ def _get_model_name() -> str:
 def parse_filename(name: str):
     """Parse filename, return skill_id and use_skill bool; return None on failure."""
     stem = name.removesuffix(".jsonl")
-    pat = r"^claude_(.+)_use-agent-(true|false)_use-skill-(true|false)_\d{8}_\d{6}$"
+    pat = r"^(?:claude|codex)_(.+)_use-agent-(true|false)_use-skill-(true|false)_\d{8}_\d{6}$"
     m = re.match(pat, stem)
     if not m:
         return None
     return {"skill_id": m.group(1), "use_skill": m.group(3) == "true"}
 
 
-def parse_jsonl(path: Path) -> dict:
-    """Read JSONL, accumulate all token fields and compute duration from first/last timestamps."""
+def parse_claude_jsonl(path: Path) -> dict:
+    """Parse Claude thinking JSONL files."""
     input_tokens = 0
     cache_creation = 0
     cache_read = 0
@@ -93,6 +88,55 @@ def parse_jsonl(path: Path) -> dict:
 
     total = input_tokens + cache_creation + cache_read + output_tokens
 
+    return {
+        "input": input_tokens,
+        "cache_create": cache_creation,
+        "cache_read": cache_read,
+        "output": output_tokens,
+        "total": total,
+        "duration": duration,
+    }
+
+
+def parse_codex_jsonl(path: Path) -> dict:
+    """Parse Codex `--json` event logs."""
+    input_tokens = 0
+    cache_creation = 0
+    cache_read = 0
+    output_tokens = 0
+    timestamps = []
+
+    with open(path, encoding="utf-8") as f:
+        for raw in f:
+            raw = raw.strip()
+            if not raw:
+                continue
+            try:
+                obj = json.loads(raw)
+            except json.JSONDecodeError:
+                continue
+
+            ts = obj.get("timestamp")
+            if ts:
+                try:
+                    timestamps.append(datetime.fromisoformat(ts.replace("Z", "+00:00")))
+                except ValueError:
+                    pass
+
+            if obj.get("type") != "turn.completed":
+                continue
+
+            usage = obj.get("usage", {})
+            if isinstance(usage, dict):
+                input_tokens += usage.get("input_tokens", 0)
+                cache_read += usage.get("cached_input_tokens", 0)
+                output_tokens += usage.get("output_tokens", 0)
+
+    duration = 0.0
+    if len(timestamps) >= 2:
+        duration = (max(timestamps) - min(timestamps)).total_seconds()
+
+    total = input_tokens + cache_creation + cache_read + output_tokens
     return {
         "input": input_tokens,
         "cache_create": cache_creation,
@@ -143,8 +187,8 @@ def main():
             cfg = yaml.safe_load(f) or {}
     except Exception:
         cfg = {}
-    raw = os.environ.get("ANTHROPIC_DEFAULT_SONNET_MODEL", "unknown-model")
-    model_name = re.sub(r"[^A-Za-z0-9._-]+", "-", raw) or "unknown-model"
+    backend = get_agent_backend(cfg)
+    model_name = get_model_name(cfg)
     g = cfg.get("global", {})
     batch = g.get("active_batch")
     if not batch:
@@ -152,12 +196,16 @@ def main():
         batch = str(batches[0]) if batches else "batch1"
     batch = str(batch)
 
+    process_dir_name = "codex_process" if backend == "codex" else "claude_process"
+    artifact_dir_name = "codex_json" if backend == "codex" else "claude_thinking"
+    parser = parse_codex_jsonl if backend == "codex" else parse_claude_jsonl
+
     thinking_dir = (
         Path(__file__).resolve().parents[1]
-        / "claude_process"
+        / process_dir_name
         / model_name
         / batch
-        / "claude_thinking"
+        / artifact_dir_name
     )
     if not thinking_dir.exists():
         print(f"❌ Directory not found: {thinking_dir}")
@@ -172,7 +220,7 @@ def main():
         if not info:
             skipped.append(fp.name)
             continue
-        data[info["skill_id"]][info["use_skill"]] = parse_jsonl(fp)
+        data[info["skill_id"]][info["use_skill"]] = parser(fp)
 
     if skipped:
         print(f"⚠  Skipped files that could not be parsed: {skipped}\n")
